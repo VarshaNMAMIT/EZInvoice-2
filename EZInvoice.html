@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator</title>
+    <style>
+     body {
+        font-family: Arial, sans-serif;
+        margin: auto;
+        padding: 20px;
+        background-color: cadetblue;
+    }
+
+    .invoice-container {
+        margin: 0 auto;
+        max-width: 800px;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header, .client-details, .invoice-details, .items, .total-section {
+        margin-bottom: 20px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    table, th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+    }
+
+    th {
+        background-color: #f8f8f8;
+    }
+
+    .add-item-btn, .download-btn {
+        background: #007bff;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+    }
+
+    .download-btn {
+        background: #28a745;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+</head>
+<body>
+<div class="invoice-container" id="invoice">
+    <div class="header">
+        <h2>INVOICE</h2>
+        <input type="text" placeholder="Your Business Name">
+        <input type="text" placeholder="Your Name">
+        <input type="text" placeholder="Your Address">
+    </div>
+    <div class="invoice-details">
+        <input type="text" placeholder="Invoice Number">
+        <input type="text" placeholder="Invoice Date">
+    </div>
+    <div class="client-details">
+        <p><strong>BILL TO:</strong></p>
+        <input type="text" placeholder="Client's Name">
+        <input type="text" placeholder="Client's Address">
+    </div>
+    <table class="items" id="invoice-table">
+        <tr>
+            <th>Item Description</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+        </tr>
+    </table>
+    <button class="add-item-btn" onclick="addItem()">Add Item</button>
+    <div class="total-section">
+        <p>Subtotal: <span id="subtotal">$0.00</span></p>
+        <p>Tax (%): <input type="number" id="tax" placeholder="Tax %" oninput="calculateGrandTotal()"></p>
+        <p>Total Amount Due: <span id="total-due">$0.00</span></p>
+    </div>
+    <button class="download-btn" onclick="downloadInvoice()">Download Invoice</button>
+    <hr>
+    <h3>Saved Invoices</h3>
+    <div id="saved-invoices"></div>
+    <button class="add-item-btn" onclick="saveInvoice()">Save Invoice</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+function addItem() {
+    const table = document.getElementById("invoice-table");
+    const row = table.insertRow(-1);
+    row.innerHTML = `
+        <td><input type="text" placeholder="Product/Service Name"></td>
+        <td><input type="number" placeholder="X" oninput="calculateTotal(this)"></td>
+        <td><input type="number" placeholder="$XX.XX" oninput="calculateTotal(this)"></td>
+        <td class="total-cell">$0.00</td>
+    `;
+}
+
+function calculateTotal(element) {
+    const row = element.closest('tr');
+    const quantity = parseFloat(row.querySelector('td:nth-child(2) input').value) || 0;
+    const price = parseFloat(row.querySelector('td:nth-child(3) input').value) || 0;
+    const totalCell = row.querySelector('.total-cell');
+    const total = quantity * price;
+    totalCell.textContent = `$${total.toFixed(2)}`;
+    calculateGrandTotal();
+}
+
+function calculateGrandTotal() {
+    let subtotal = 0;
+    document.querySelectorAll('.total-cell').forEach(cell => {
+        subtotal += parseFloat(cell.textContent.replace('$', '')) || 0;
+    });
+    document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
+
+    const taxRate = parseFloat(document.getElementById('tax').value) || 0;
+    const taxAmount = (subtotal * taxRate) / 100;
+    const totalDue = subtotal + taxAmount;
+    document.getElementById('total-due').textContent = `$${totalDue.toFixed(2)}`;
+}
+
+async function downloadInvoice() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const businessName = document.querySelector(".header input:nth-child(2)").value;
+  const yourName = document.querySelector(".header input:nth-child(3)").value;
+  const yourAddress = document.querySelector(".header input:nth-child(4)").value;
+  const invoiceNumber = document.querySelector(".invoice-details input:nth-child(1)").value;
+  const invoiceDate = document.querySelector(".invoice-details input:nth-child(2)").value;
+  const clientName = document.querySelector(".client-details input:nth-child(2)").value;
+  const clientAddress = document.querySelector(".client-details input:nth-child(3)").value;
+
+  const rows = [];
+  document.querySelectorAll("#invoice-table tr:not(:first-child)").forEach(row => {
+    const cols = row.querySelectorAll("td");
+    const item = cols[0].querySelector("input").value;
+    const qty = cols[1].querySelector("input").value;
+    const price = cols[2].querySelector("input").value;
+    const total = cols[3].textContent.replace('$', '');
+    rows.push([item, qty, price, total]);
+  });
+
+  const subtotal = document.getElementById("subtotal").textContent;
+  const tax = document.getElementById("tax").value;
+  const totalDue = document.getElementById("total-due").textContent;
+
+  // Header
+  doc.setFontSize(16);
+  doc.text("INVOICE", 14, 20);
+  doc.setFontSize(12);
+  doc.text(`Business Name: ${businessName}`, 14, 30);
+  doc.text(`Your Name: ${yourName}`, 14, 36);
+  doc.text(`Address: ${yourAddress}`, 14, 42);
+  doc.text(`Invoice #: ${invoiceNumber}`, 14, 50);
+  doc.text(`Date: ${invoiceDate}`, 14, 56);
+  doc.text(`Bill To: ${clientName}`, 14, 64);
+  doc.text(`${clientAddress}`, 14, 70);
+
+  // Table
+  doc.autoTable({
+    head: [['Item Description', 'Quantity', 'Unit Price', 'Total']],
+    body: rows,
+    startY: 80,
+    theme: 'grid',
+    styles: { fontSize: 11 },
+    headStyles: { fillColor: [41, 128, 185] },
+  });
+
+  // Totals
+  let finalY = doc.lastAutoTable.finalY || 100;
+  doc.text(`Subtotal: ${subtotal}`, 14, finalY + 10);
+  doc.text(`Tax: ${tax}%`, 14, finalY + 16);
+  doc.text(`Total Amount Due: ${totalDue}`, 14, finalY + 22);
+
+  doc.save(`Invoice_${invoiceNumber || 'Generated'}.pdf`);
+}
+
+
+function saveInvoice() {
+    const invoice = {
+        businessName: document.querySelector(".header input:nth-child(2)").value,
+        yourName: document.querySelector(".header input:nth-child(3)").value,
+        invoiceNumber: document.querySelector(".invoice-details input:nth-child(1)").value,
+        invoiceDate: document.querySelector(".invoice-details input:nth-child(2)").value,
+        clientName: document.querySelector(".client-details input:nth-child(2)").value,
+        totalDue: document.getElementById("total-due").textContent
+    };
+
+    let saved = JSON.parse(localStorage.getItem("invoices")) || [];
+    saved.push(invoice);
+    localStorage.setItem("invoices", JSON.stringify(saved));
+    listInvoices();
+}
+
+function listInvoices() {
+    const saved = JSON.parse(localStorage.getItem("invoices")) || [];
+    const container = document.getElementById("saved-invoices");
+    container.innerHTML = "";
+
+    if (saved.length === 0) {
+        container.innerHTML = "<p>No saved invoices.</p>";
+        return;
+    }
+
+    const table = document.createElement("table");
+    table.innerHTML = `
+        <tr>
+            <th>Business</th>
+            <th>Name</th>
+            <th>Invoice #</th>
+            <th>Date</th>
+            <th>Client</th>
+            <th>Total</th>
+        </tr>
+    `;
+
+    saved.forEach(inv => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${inv.businessName}</td>
+            <td>${inv.yourName}</td>
+            <td>${inv.invoiceNumber}</td>
+            <td>${inv.invoiceDate}</td>
+            <td>${inv.clientName}</td>
+            <td>${inv.totalDue}</td>
+        `;
+        table.appendChild(row);
+    });
+
+    container.appendChild(table);
+}
+
+window.onload = listInvoices;
+</script>
+</body>
+</html>
